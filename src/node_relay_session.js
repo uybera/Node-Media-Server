@@ -20,6 +20,39 @@ class NodeRelaySession extends EventEmitter {
     this.TAG = 'relay';
   }
 
+  runRelayToJanus(){
+    let argv = ['-i', this.conf.inPath, 
+    '-c', 'copy','-f','rtp','-an','-payload_type','126','rtp://127.0.0.1:8004'];
+    /** 
+    *ffmpeg -i rtmp://127.0.0.1:1935/live/<token> -c copy -f rtp -an -payload_type 126 rtp://127.0.0.1:8004
+    */
+
+    if (this.conf.inPath[0] === '/' || this.conf.inPath[1] === ':') {
+      argv.unshift('-1');
+      argv.unshift('-stream_loop');
+    }
+
+    Logger.log('[relay task] id=' + this.id, 'cmd=ffmpeg', argv.join(' '));
+
+    this.ffmpeg_exec = spawn(this.conf.ffmpeg, argv);
+    this.ffmpeg_exec.on('error', (e) => {
+      Logger.ffdebug(e);
+    });
+
+    this.ffmpeg_exec.stdout.on('data', (data) => {
+      Logger.ffdebug(`FF_LOG:${data}`);
+    });
+
+    this.ffmpeg_exec.stderr.on('data', (data) => {
+      Logger.ffdebug(`FF_LOG:${data}`);
+    });
+
+    this.ffmpeg_exec.on('close', (code) => {
+      Logger.log('[relay end] id=' + this.id, 'code=' + code);
+      this.emit('end', this.id);
+    });
+  }
+
   run() {
     let format = this.conf.ouPath.startsWith('rtsp://') ? 'rtsp' : 'flv';
     let argv = ['-re', '-i', this.conf.inPath, '-c', 'copy', '-f', format, this.conf.ouPath];
